@@ -1,5 +1,6 @@
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 from scipy.optimize import curve_fit, root_scalar
 from statsmodels.distributions.empirical_distribution import ECDF
 import preprocessing_utils as putil
@@ -8,6 +9,10 @@ import pandas as pd
 
 
 class GLScaler(BaseEstimator, TransformerMixin):
+    """
+    Scaling by fitting GL function to the ECDF
+    """
+
     def __init__(self, group_col, num_cols):
         self.group_col = group_col
         self.num_cols = num_cols
@@ -20,7 +25,7 @@ class GLScaler(BaseEstimator, TransformerMixin):
     def fit(self, seen_data, y=None):
         self.groups = seen_data[self.group_col].unique()
         for group in self.groups:
-            group_data = seen_data[seen_data[group] == group]
+            group_data = seen_data[seen_data[self.group_col] == group]
             self.gl_dict[group] = dict()
 
             for feature in self.num_cols:
@@ -49,7 +54,7 @@ class GLScaler(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         X = X.copy()
         for group in self.groups:
-            group_mask = X[self.group_col] = group
+            group_mask = X[self.group_col] == group
             for feature in self.num_cols:
                 X.loc[group_mask, feature] = X.loc[group_mask, feature].apply(self.gl_dict[group][feature])
 
@@ -57,29 +62,38 @@ class GLScaler(BaseEstimator, TransformerMixin):
 
 
 class PercentileScaler(BaseEstimator, TransformerMixin):
-    def __init__(self, group_col, num_cols, percentiles, fit_percentiles=False):
+    """
+    Scaling by mapping to percentile range
+    """
+
+    def __init__(self, group_col, num_cols, percentiles=None, labels=None, fit_percentiles=False, lower_b=None,
+                 upper_b=None):
         self.group_col = group_col
         self.num_cols = num_cols
         self.percentiles = percentiles
         self.fit_percentiles = fit_percentiles
+        self.lower_b = lower_b
+        self.upper_b = upper_b
         self.groups = None
+        self.labels = labels
 
     def fit(self, seen_data, y=None):
         self.groups = seen_data[self.group_col].unique()
         if self.fit_percentiles:
-            self.percentiles = putil.calculate_percentiles(seen_data)
-
+            self.percentiles = putil.calculate_percentiles(seen_data, self.num_cols, self.group_col,
+                                                           self.lower_b, self.upper_b)
         return self
 
     def transform(self, X, y=None):
         X = X.copy()
         for group in self.groups:
-            group_mask = X[self.group_col] = group
+            group_mask = X[self.group_col] == group
             for feature in self.num_cols:
                 X.loc[group_mask, feature] = pd.cut(X.loc[group_mask, feature],
-                                                    self.percentiles[(feature, group)][0],
-                                                    labels=self.percentiles[(feature, group)][1],
+                                                    self.percentiles[(feature, group)],
+                                                    labels=self.labels,
                                                     right=False)
+        X[self.num_cols] = X[self.num_cols].astype(int)
         return X
 
 
@@ -93,7 +107,7 @@ class GroupNormalization(BaseEstimator, TransformerMixin):
     def fit(self, seen_data, y=None):
         self.groups = seen_data[self.group_col].unique()
         for group in self.groups:
-            group_mask = seen_data[self.group_col] = group
+            group_mask = seen_data[self.group_col] == group
             self.scalers[group] = StandardScaler().fit(seen_data.loc[group_mask, self.num_cols])
 
         return self
@@ -101,19 +115,57 @@ class GroupNormalization(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         X = X.copy()
         for group in self.groups:
-            group_mask = X[self.group_col] = group
-            X[group_mask, self.num_cols] = self.scalers[group].transform(X[group_mask, self.num_cols])
+            group_mask = X[self.group_col] == group
+            X.loc[group_mask, self.num_cols] = self.scalers[group].transform(X.loc[group_mask, self.num_cols])
 
         return X
 
 
 class GroupImputer(BaseEstimator, TransformerMixin):
-    def __init__(self, num_cols, groups):
+    def __init__(self, group_col, num_cols):
         self.num_cols = num_cols
-        self.groups = groups
+        self.group_col = group_col
+        self.groups = None
+        self.imputers = dict()
+
+    def fit(self, seen_data, y=None):
+        self.groups = seen_data[self.group_col].unique()
+        for group in self.groups:
+            group_mask = seen_data[self.group_col] == group
+            self.imputers[group] = SimpleImputer().fit(seen_data.loc[group_mask, self.num_cols])
+
+        return self
+
+    def transform(self, X, y=None):
+        X = X.copy()
+        for group in self.groups:
+            group_mask = X[self.group_col] == group
+            X.loc[group_mask, self.num_cols] = self.imputers[group].transform(X.loc[group_mask, self.num_cols])
+
+        return X
+
+
+class StandardColsScale(BaseEstimator, TransformerMixin):
+    def __init__(self, general_num_cols, scaler):
+        self.general_num_cols = general_num_cols
+        self.scaler = scaler
+
+    def fit(self, seen_data, y=None):
+        self.scaler.fit(seen_data[self.general_num_cols])
+        return self
+
+    def transform(self, X, y=None):
+        X = X.copy()
+        X[self.general_num_cols] = self.scaler.transform(X[self.general_num_cols])
+        return X
+
+
+class ColFilter(BaseEstimator, TransformerMixin):
+    def __init__(self, model_cols):
+        self.model_cols = model_cols
 
     def fit(self, seen_data, y=None):
         return self
 
-    def transform(self, X, y=None):
-        pass
+    def transform(self, X, y):
+        return X[self.model_cols]
