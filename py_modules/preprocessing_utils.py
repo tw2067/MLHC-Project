@@ -19,7 +19,6 @@ def calculate_percentiles(df, num_cols, group_col, lower_b, upper_b):
     qdict = dict()
 
     for feature in num_cols:
-        feature_notna = df[df[f'{feature}_miss']]
         percentiles = df.groupby(group_col)[feature].agg([quant.q03, quant.q10,
                                                           quant.q15, quant.q25,
                                                           quant.q35, quant.q65,

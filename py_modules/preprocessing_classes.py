@@ -1,7 +1,7 @@
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
-from scipy.optimize import curve_fit, root_scalar
+from scipy.optimize import curve_fit, newton
 from statsmodels.distributions.empirical_distribution import ECDF
 import preprocessing_utils as putil
 import numpy as np
@@ -13,9 +13,10 @@ class GLScaler(BaseEstimator, TransformerMixin):
     Scaling by fitting GL function to the ECDF
     """
 
-    def __init__(self, group_col, num_cols):
+    def __init__(self, group_col, num_cols, x0_range):
         self.group_col = group_col
         self.num_cols = num_cols
+        self.x0_range = x0_range
 
         self.f = lambda x, Q, B, M, v: 1 / (1 + Q * np.exp(-B * (x - M))) ** (1 / v)
         self.gl_dict = dict()
@@ -33,10 +34,24 @@ class GLScaler(BaseEstimator, TransformerMixin):
                 xmin, xmax, xmed = np.min(group_data[feature]), np.max(group_data[feature]), np.median(
                     group_data[feature])
                 M0 = xmed
-                fq0 = lambda q0: (1 / (1 + q0 * np.exp(
-                    (np.log((1 + q0) ** np.log2(10) - 1) - np.log(q0))
-                    * (xmax - xmed) / (xmin - xmed)))) - (0.9 ** np.log2(1 + q0))
-                Q0 = root_scalar(fq0, method='newton')
+                exp_func = lambda a: np.exp((np.log((1 + a) ** np.log2(10) - 1) - np.log(a))
+                                            * (xmax - xmed) / (xmin - xmed))
+                exp_tag = lambda a: ((np.log2(10) * (1 + a) ** (np.log2(10) - 1)) /
+                                     ((a + 1) ** np.log2(10) - 1)) * ((xmax - xmed) / (xmin - xmed))
+                fprime = lambda q0: - (((1 + q0 * exp_tag(q0)) * exp_func(q0)) / ((1 + exp_func(q0)) ** 2)
+                                       + np.log(0.9) / (np.log(2) * (1 + q0)) * 0.9 ** np.log2(1 + q0))
+                fq0 = lambda q0: (1 / (1 + q0 * exp_func(q0))) - (0.9 ** np.log2(1 + q0))
+
+                Q0 = 0.01
+                for x0 in range(self.x0_range):
+                    try:
+                        Q0 = newton(fq0, x0/200, maxiter=10000, fprime=fprime)
+                        print(f'yay {x0/200}')
+                        break
+                    except Exception:
+                        continue
+                if Q0 == 0.01:
+                    print(0.01)
                 v0 = np.log2(1 + Q0)
                 B0 = (np.log((1 + Q0) ** np.log2(10) - 1) - np.log(Q0)) / (xmed - xmin)
 
@@ -45,7 +60,8 @@ class GLScaler(BaseEstimator, TransformerMixin):
                 y_ecdf = ecdf(group_data[feature])
 
                 # fitting of the ECDF using the GL algorithm
-                popt, pcov = curve_fit(self.f, xdata=group_data[feature], ydata=y_ecdf, p0=[Q0, B0, M0, v0])
+                popt, pcov = curve_fit(self.f, xdata=group_data[feature], ydata=y_ecdf, p0=[Q0, B0, M0, v0],
+                                       maxfev=10000)
                 Q, B, M, v = popt[0], popt[1], popt[2], popt[3]
                 self.gl_dict[group][feature] = lambda x: 1 / (1 + Q * np.exp(-B * (x - M))) ** (1 / v)
 
@@ -167,5 +183,5 @@ class ColFilter(BaseEstimator, TransformerMixin):
     def fit(self, seen_data, y=None):
         return self
 
-    def transform(self, X, y):
+    def transform(self, X, y=None):
         return X[self.model_cols]

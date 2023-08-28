@@ -10,8 +10,28 @@ def cv_curves():
     pass
 
 
-def cv_boxplots():
-    pass
+def cv_boxplots(cv_results, id_vars, fig_size, hue, dir_name, fig_name):
+    aurocs = cv_results.melt(id_vars=id_vars,
+                             value_vars=['split0_test_roc_auc', 'split1_test_roc_auc', 'split2_test_roc_auc',
+                                         'split3_test_roc_auc', 'split4_test_roc_auc'], value_name='AUROC')
+    auprs = cv_results.melt(id_vars=id_vars,
+                            value_vars=['split0_test_average_precision', 'split1_test_average_precision',
+                                        'split2_test_average_precision', 'split3_test_average_precision',
+                                        'split4_test_average_precision'], value_name='AUPR')
+    fig, axs = plt.subplots(1, 2, figsize=fig_size)
+    sns.boxplot(aurocs, x=id_vars[0], y='AUROC', hue=hue, ax=axs[0], showmeans=True,
+                meanprops={'markerfacecolor': 'w', 'markeredgecolor': 'k', 'marker': 'o'})
+    sns.boxplot(auprs, x=id_vars[0], y='AUPR', hue=hue, ax=axs[1], showmeans=True,
+                meanprops={'markerfacecolor': 'w', 'markeredgecolor': 'k', 'marker': 'o'})
+    axs[0].set_title('AUROC')
+    axs[1].set_title('AUPR')
+    axs[0].set_xticklabels(axs[0].get_xticklabels(), rotation=90)
+    axs[1].set_xticklabels(axs[1].get_xticklabels(), rotation=90)
+    axs[0].set_xlabel('')
+    axs[1].set_xlabel('')
+    fig.suptitle('CV boxplot')
+    plt.tight_layout()
+    plt.savefig(f'{dir_name}/{fig_name}.png')
 
 
 def percentiles_plot(df, feature_col, dir_name):
