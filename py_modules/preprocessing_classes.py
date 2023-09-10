@@ -46,12 +46,9 @@ class GLScaler(BaseEstimator, TransformerMixin):
                 for x0 in range(self.x0_range):
                     try:
                         Q0 = newton(fq0, x0/200, maxiter=10000, fprime=fprime)
-                        print(f'yay {x0/200}')
                         break
                     except Exception:
                         continue
-                if Q0 == 0.01:
-                    print(0.01)
                 v0 = np.log2(1 + Q0)
                 B0 = (np.log((1 + Q0) ** np.log2(10) - 1) - np.log(Q0)) / (xmed - xmin)
 
