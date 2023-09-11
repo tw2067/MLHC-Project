@@ -5,13 +5,12 @@ from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 import preprocessing_classes as pclass
-import percentiles_funcs as quant
+import preprocessing_utils as quant
 import pipeline as pl
 import warnings
 import sys
 
 warnings.filterwarnings("ignore")
-sns.set_palette('Set3')
 
 model_data1 = pd.read_csv('data/hw1_model_scaling.csv')
 model_data2 = pd.read_csv('data/hw2_model_scaling.csv')

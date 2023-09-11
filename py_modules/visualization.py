@@ -1,8 +1,9 @@
 import numpy as np
-import percentiles_funcs as quant
+import preprocessing_utils as quant
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 sns.set_palette('Set3')
 
 
@@ -15,22 +16,24 @@ def plot_scaling_cv(cv_res, figname):
     imputer_names = {cv_imputer[0]: 'AG', cv_imputer[1]: 'EG', cv_imputer[2]: 'EAG'}
     scaler_names = {cv_scaler[0]: 'Standard', cv_scaler[1]: 'Percentile AG', cv_scaler[2]: 'Percentile EG',
                     cv_scaler[3]: 'GL AG', cv_scaler[4]: 'GL EG', cv_scaler[5]: 'Group AG', cv_scaler[6]: 'Group EG',
-                   cv_scaler[7]: 'Group EAG'}
+                    cv_scaler[7]: 'Group EAG'}
 
     cv_res['Model'] = cv_res['param_model'].apply(lambda x: model_names[x])
     cv_res['Impute'] = cv_res['param_impute'].apply(lambda x: imputer_names[x])
     cv_res['Scale'] = cv_res['param_scale'].apply(lambda x: scaler_names[x])
     aurocs = cv_res.melt(id_vars=['Model', 'Impute', 'Scale'],
-                                 value_vars=['split0_test_roc_auc', 'split1_test_roc_auc', 'split2_test_roc_auc',
-                                             'split3_test_roc_auc', 'split4_test_roc_auc'], value_name='AUROC')
+                         value_vars=['split0_test_roc_auc', 'split1_test_roc_auc', 'split2_test_roc_auc',
+                                     'split3_test_roc_auc', 'split4_test_roc_auc'], value_name='AUROC')
     auprs = cv_res.melt(id_vars=['Model', 'Impute', 'Scale'],
-                            value_vars=['split0_test_average_precision', 'split1_test_average_precision',
-                                        'split2_test_average_precision', 'split3_test_average_precision',
-                                        'split4_test_average_precision'], value_name='AUPR')
+                        value_vars=['split0_test_average_precision', 'split1_test_average_precision',
+                                    'split2_test_average_precision', 'split3_test_average_precision',
+                                    'split4_test_average_precision'], value_name='AUPR')
     fig, axs = plt.subplots(1, 2, figsize=(21, 6))
-    sns.boxplot(aurocs, x='Model', y='AUROC', hue=aurocs[['Impute', 'Scale']].apply(tuple, axis=1), ax=axs[0], showmeans=True,
+    sns.boxplot(aurocs, x='Model', y='AUROC', hue=aurocs[['Impute', 'Scale']].apply(tuple, axis=1), ax=axs[0],
+                showmeans=True,
                 meanprops={'markerfacecolor': 'w', 'markeredgecolor': 'k', 'marker': 'o'})
-    sns.boxplot(auprs, x='Model', y='AUPR', hue=auprs[['Impute', 'Scale']].apply(tuple, axis=1), ax=axs[1], showmeans=True,
+    sns.boxplot(auprs, x='Model', y='AUPR', hue=auprs[['Impute', 'Scale']].apply(tuple, axis=1), ax=axs[1],
+                showmeans=True,
                 meanprops={'markerfacecolor': 'w', 'markeredgecolor': 'k', 'marker': 'o'})
     axs[0].set_title('AUROC')
     axs[1].set_title('AUPR')
@@ -87,7 +90,7 @@ def percentiles_plot(df, feature_col, dir_name):
                                                               quant.q75, quant.q85,
                                                               quant.q90, quant.q97])
         for i in range(len(percentiles.columns) - 1):
-            plt.fill_between(percentiles.index, percentiles.iloc[:, i], percentiles.iloc[:, i+1], label=labels[i])
+            plt.fill_between(percentiles.index, percentiles.iloc[:, i], percentiles.iloc[:, i + 1], label=labels[i])
 
         plt.xlabel('Age (years)')
         plt.ylabel(feature)
