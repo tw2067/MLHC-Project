@@ -2,16 +2,21 @@ import pandas as pd
 import numpy as np
 
 
-def get_data():
-    pass
+def extract_groups(df):
+    df['age_group'] = pd.cut(df['age'], [18, 30, 40, 50, 60, 70, 80, 300],
+                             right=False, labels=['18-29', '30-39', '40-49', '50-59',
+                                                  '60-69', '70-79', '80p'])
+    # groups for imputation and scaling methods
+    df['age_gender'] = [f'{a}_{g}' for a, g in zip(df['age_group'], df['gender_l'])]
+    df['eth_gender'] = [f'{e}_{g}' for e, g in zip(df['ethnicity'], df['gender_l'])]
+    df['eth_age_gender'] = [f'{e}_{a}_{g}' for e, a, g in zip(df['ethnicity'], df['age_group'], df['gender_l'])]
 
+    # groups for sample weights balancing
+    df['age_gender_target'] = [f'{ag}_{t}' for ag, t in zip(df['age_gender'], df['target'])]
+    df['eth_gender_target'] = [f'{eg}_{t}' for ag, t in zip(df['eth_gender'], df['target'])]
+    df['eth_age_gender_target'] = [f'{eag}_{t}' for eag, t in zip(df['eth_age_gender'], df['target'])]
 
-def extract_features():
-    pass
-
-
-def match_dataset(df, by):
-    pass
+    return df
 
 
 def calculate_percentiles(df, num_cols, group_col, lower_b, upper_b):
@@ -27,6 +32,7 @@ def calculate_percentiles(df, num_cols, group_col, lower_b, upper_b):
             qdict[(feature, group)] = [lower_b[feature]] + list(percentiles.loc[group]) + [upper_b[feature]]
 
     return qdict
+
 
 def q03(x):
     return x.quantile(0.03)
